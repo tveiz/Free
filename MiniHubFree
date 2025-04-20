@@ -1,0 +1,524 @@
+--[[
+Rayfield Menu com as Funções Adicionadas
+
+Este script integra todas as funções fornecidas em um menu Rayfield.
+
+Instruções:
+
+Certifique-se de ter o loader do Rayfield Menu (game:HttpGet('https://sirius.menu/rayfield')) antes de executar este script.
+
+Copie todo o código abaixo e execute no seu exploit.
+--]]
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- Cria a janela do menu
+local Window = Rayfield:CreateWindow({
+    Name = "Mini Hub Free",
+    LoadingInfo = {
+        Developer = "Th",
+        Creator = "Th",
+        Discord = "https://discord.gg/3kZDcyVz",
+        LoadingTip = "Carregando...",
+    },
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "Mini Hub", -- Nome da pasta onde as configurações serão salvas
+        FileName = "Config"
+    }
+})
+
+-- [[ FUNÇÃO DE LOGS VIA WEBHOOK NÃO APARECE NO MENU ]]
+--// Execução via Webhook
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService") -- Adicionado para garantir que está carregado
+local webhookURL = "https://discord.com/api/webhooks/1362506579504791644/svkCbd9OGpVICQhz-dhuTMrZGS62jx7OLrE-V4VovgkfWQwYsY9Igf0JE1pN7nONGp6C"
+-- local sendWebhookEnabled = true -- LOGS SEMPRE ATIVADOS. (Comentado pois não é usado diretamente)
+
+local function getDeviceType()
+    if UserInputService.TouchEnabled then
+        return "Celular/Tablet"
+    elseif UserInputService.KeyboardEnabled then
+        return "PC"
+    else
+        return "Desconhecido"
+    end
+end
+
+local function sendWebhook()
+    local success, result = pcall(function()
+        local data = {
+            ["username"] = "LOGS execução",
+            ["avatar_url"] = "https://i.imgur.com/CF7wYq5.png",
+            ["content"] = "Nova execução da Mini Menu\nNome: " .. Player.Name .. "\nUserId: " .. Player.UserId .. "\nHorário: " .. os.date("%d/%m/%Y %H:%M:%S") .. "\nDispositivo: " .. getDeviceType()
+        }
+        local jsonData = HttpService:JSONEncode(data)
+        local body = { Url = webhookURL, Body = jsonData, Method = "POST", Headers = { ["Content-Type"] = "application/json" } }
+
+        -- Tenta diferentes métodos de requisição HTTP dependendo do exploit
+        if syn and syn.request then
+            syn.request(body)
+        elseif request then
+            request(body)
+        elseif http and http.request then
+            http.request(body)
+        else
+            warn("Seu exploit não suporta requisições HTTP para enviar o webhook!")
+        end
+    end)
+    if not success then
+        warn("Erro ao enviar webhook:", result)
+    end
+end
+
+-- Envia o webhook assim que o script é executado em uma nova thread para não bloquear
+task.spawn(sendWebhook)
+
+-- [[FIM FUNÇÃO DE LOGS VIA WEBHOOK NÃO APARECE NO MENU ]]
+
+
+-- Cria a aba principal
+local MainTab = Window:CreateTab("Principal", 4483362458) -- Renomeado para clareza
+
+-- Seção de Aimbot (PC)
+local AimbotSection = MainTab:CreateSection("Aimbot (PC)")
+
+--// Aimbot (Somente PC)
+local plrs = game:GetService("Players")
+local cam = game:GetService("Workspace").CurrentCamera
+local lplr = plrs.LocalPlayer
+local mouse = lplr:GetMouse()
+local aimatpart = nil
+local aimbotEnabled = false -- Variável para controlar o estado do Aimbot
+local aimbotConnectionRender
+local aimbotConnectionButtonDown
+local aimbotConnectionButtonUp
+local playerRefreshLoop = nil -- Variável para controlar o loop de refresh
+
+function checkfov(part)
+    if not part or not part.Parent or not cam then return math.huge end
+    local screenPos, onScreen = cam:WorldToScreenPoint(part.Position)
+    if onScreen then
+        local magnitude = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+        return magnitude
+    end
+    return math.huge
+end
+
+function aimat(part)
+    if cam and part then
+        cam.CFrame = CFrame.new(cam.CFrame.Position, part.Position)
+    end
+end
+
+local function refreshPlayers()
+    -- Esta função agora apenas garante que o evento Died esteja conectado
+    -- A lógica principal de encontrar alvos está no Button2Down
+    for _, plr in pairs(plrs:GetPlayers()) do
+        if plr ~= lplr and plr.Character and plr.Character:FindFirstChild("Head") and plr.Character:FindFirstChild("Humanoid") then
+            local humanoid = plr.Character.Humanoid
+            -- Conecta apenas uma vez se não estiver conectado
+            if not plr:FindFirstChild("DiedConnectionAimbot") then
+                 local conn = humanoid.Died:Connect(function()
+                    if aimatpart and aimatpart.Parent == plr.Character then
+                        aimatpart = nil
+                    end
+                    -- Desconecta após morrer para evitar memory leak
+                    if plr:FindFirstChild("DiedConnectionAimbot") then
+                        plr.DiedConnectionAimbot.Value:Disconnect()
+                        plr.DiedConnectionAimbot:Destroy()
+                    end
+                end)
+                -- Armazena a conexão para desconectar depois
+                local connHolder = Instance.new("Connection", plr)
+                connHolder.Name = "DiedConnectionAimbot"
+                connHolder.Value = conn
+            end
+        end
+    end
+end
+
+local function toggleAimbot(enabled)
+    aimbotEnabled = enabled
+    if enabled then
+        -- Start refresh loop if not already running
+        if not playerRefreshLoop then
+            playerRefreshLoop = task.spawn(function()
+                while aimbotEnabled do -- Continua apenas enquanto o aimbot estiver ativo
+                    refreshPlayers()
+                    task.wait(5) -- Refresh menos frequente
+                end
+                playerRefreshLoop = nil -- Reseta quando o loop termina
+            end)
+        end
+
+        -- Conecta os eventos
+        if not aimbotConnectionRender then
+            aimbotConnectionRender = game:GetService("RunService").RenderStepped:Connect(function()
+                if aimbotEnabled and aimatpart and aimatpart.Parent and aimatpart.Parent:IsA("Model") and aimatpart.Parent:FindFirstChild("Humanoid") and aimatpart.Parent.Humanoid.Health > 0 then
+                    aimat(aimatpart)
+                else
+                    aimatpart = nil -- Limpa se o alvo for inválido
+                end
+            end)
+        end
+
+        if not aimbotConnectionButtonDown then
+            aimbotConnectionButtonDown = mouse.Button2Down:Connect(function()
+                if not aimbotEnabled then return end -- Verifica se o aimbot está ativo
+                local closestTarget = nil
+                local minAngle = 300 -- Distância em pixels (FOV)
+
+                for _, plr in pairs(plrs:GetPlayers()) do
+                    if plr ~= lplr and plr.Character and plr.Character:FindFirstChild("Head") and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
+                        local head = plr.Character.Head
+                        local angle = checkfov(head)
+                        if angle < minAngle then
+                            minAngle = angle
+                            closestTarget = head
+                        end
+                    end
+                end
+                aimatpart = closestTarget
+            end)
+        end
+
+        if not aimbotConnectionButtonUp then
+            aimbotConnectionButtonUp = mouse.Button2Up:Connect(function()
+                aimatpart = nil
+            end)
+        end
+    else
+        -- Para o loop de refresh (o loop interno verificará aimbotEnabled)
+        -- aimbotEnabled = false já foi definido
+
+        -- Desconecta os eventos
+        if aimbotConnectionRender then
+            aimbotConnectionRender:Disconnect()
+            aimbotConnectionRender = nil
+        end
+        if aimbotConnectionButtonDown then
+            aimbotConnectionButtonDown:Disconnect()
+            aimbotConnectionButtonDown = nil
+        end
+        if aimbotConnectionButtonUp then
+            aimbotConnectionButtonUp:Disconnect()
+            aimbotConnectionButtonUp = nil
+        end
+        aimatpart = nil -- Garante que não haja alvo ao desativar
+    end
+end
+
+-- Toggle Aimbot
+local AimbotToggle = MainTab:CreateToggle({
+    Name = "Aimbot",
+    Description = "Ativa/Desativa o Aimbot (Segure Botão Direito do Mouse).",
+    CurrentValue = false,
+    Section = AimbotSection,
+    Callback = function(Value)
+        toggleAimbot(Value)
+    end
+})
+
+
+-- Seção ESP
+local ESPSection = MainTab:CreateSection("ESP")
+
+--// ESP
+local _G = _G or getfenv() -- Garante compatibilidade
+_G.FriendColor = Color3.fromRGB(0, 0, 255)
+_G.EnemyColor = Color3.fromRGB(255, 0, 0)
+_G.UseTeamColor = true
+local espPlayers = game:GetService("Players") -- Usa variável local diferente para evitar conflito
+local espPlr = espPlayers.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
+
+if not CoreGui:FindFirstChild("ESP") then
+    Instance.new("Folder", CoreGui).Name = "ESP"
+end
+local ESPFolder = CoreGui.ESP
+
+local espEnabled = false
+local espConnection
+
+local function esp(target, color)
+    if target and target.Character and target.Character.Parent then -- Verifica se o personagem existe e está no workspace
+        local char = target.Character
+
+        -- Highlight
+        local h = char:FindFirstChild("ESP_Highlight")
+        if not h then
+            h = Instance.new("Highlight", ESPFolder) -- Pai para a pasta ESP para organizar
+            h.Name = "ESP_Highlight"
+            h.Adornee = char
+            h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            h.FillTransparency = 0.5 -- Ajusta transparência
+            h.OutlineTransparency = 0 -- Sem contorno
+            h.FillColor = color
+        else
+            h.FillColor = color
+            h.Enabled = true -- Garante que está ativo
+        end
+
+        -- NameTag
+        local b = char:FindFirstChild("ESP_NameTag")
+        if not b then
+            b = Instance.new("BillboardGui", ESPFolder) -- Pai para a pasta ESP
+            b.Name = "ESP_NameTag"
+            b.Adornee = char:FindFirstChild("Head") or char -- Adorna na cabeça se existir
+            b.Size = UDim2.new(0, 100, 0, 20) -- Tamanho ajustado
+            b.StudsOffset = Vector3.new(0, 2.5, 0) -- Offset ajustado
+            b.AlwaysOnTop = true
+            b.LightInfluence = 0 -- Remove influência da luz
+
+            local l = Instance.new("TextLabel", b)
+            l.Size = UDim2.new(1, 0, 1, 0)
+            l.BackgroundTransparency = 1
+            l.TextColor3 = color
+            l.TextSize = 14 -- Tamanho ajustado
+            l.Font = Enum.Font.SourceSansBold
+            l.Text = target.Name
+            l.TextStrokeTransparency = 0 -- Adiciona contorno preto
+        else
+            b.Enabled = true -- Garante que está ativo
+            local l = b:FindFirstChildOfClass("TextLabel")
+            if l then
+                l.TextColor3 = color
+                l.Text = target.Name -- Atualiza caso o nome mude (improvável, mas seguro)
+            end
+             -- Atualiza Adornee para a cabeça se ela existir agora
+             if not b.Adornee or b.Adornee ~= (char:FindFirstChild("Head") or char) then
+                 b.Adornee = char:FindFirstChild("Head") or char
+             end
+        end
+    end
+end
+
+local function cleanupESP(target)
+    -- Remove Highlight
+    local h = ESPFolder:FindFirstChild("ESP_Highlight")
+    if h and h.Adornee == target.Character then
+        h:Destroy()
+    end
+     -- Remove NameTag
+    local b = ESPFolder:FindFirstChild("ESP_NameTag")
+     if b and b.Adornee and (b.Adornee == target.Character or b.Adornee.Parent == target.Character) then
+         b:Destroy()
+     end
+
+     -- Alternativa mais robusta (procura por todos associados a esse char)
+     if target and target.Character then
+         for _, item in pairs(ESPFolder:GetChildren()) do
+            if item:IsA("Highlight") and item.Name == "ESP_Highlight" and item.Adornee == target.Character then
+                item:Destroy()
+            elseif item:IsA("BillboardGui") and item.Name == "ESP_NameTag" and item.Adornee and (item.Adornee == target.Character or item.Adornee.Parent == target.Character) then
+                 item:Destroy()
+             end
+         end
+     end
+end
+
+local function toggleESP(enabled)
+    espEnabled = enabled
+    if enabled then
+        espConnection = game:GetService("RunService").RenderStepped:Connect(function()
+            if not espEnabled then return end -- Verifica novamente caso tenha sido desativado
+            local currentPlayers = {}
+            for _, v in pairs(espPlayers:GetPlayers()) do
+                if v ~= espPlr then
+                    currentPlayers[v] = true -- Marca jogadores atuais
+                    local color
+                    if _G.UseTeamColor and v.Team then
+                         color = v.TeamColor.Color
+                    else
+                        local isFriend = (espPlr.Team == v.Team and espPlr.Team ~= nil) -- Verifica se tem time e se são iguais
+                        color = isFriend and _G.FriendColor or _G.EnemyColor
+                    end
+                    esp(v, color)
+                end
+            end
+
+             -- Limpa ESP de jogadores que saíram ou não estão mais válidos
+             for _, item in pairs(ESPFolder:GetChildren()) do
+                 if item:IsA("Highlight") and item.Adornee then
+                     local player = espPlayers:GetPlayerFromCharacter(item.Adornee)
+                     if not player or player == espPlr or not currentPlayers[player] then
+                         item:Destroy() -- Remove se o jogador saiu, é local ou não está na lista atual
+                     end
+                 elseif item:IsA("BillboardGui") and item.Adornee then
+                     local player
+                     if item.Adornee:IsA("Model") then -- Adornado no personagem
+                         player = espPlayers:GetPlayerFromCharacter(item.Adornee)
+                     elseif item.Adornee:IsA("BasePart") and item.Adornee.Parent:IsA("Model") then -- Adornado na cabeça
+                         player = espPlayers:GetPlayerFromCharacter(item.Adornee.Parent)
+                     end
+
+                     if not player or player == espPlr or not currentPlayers[player] then
+                         item:Destroy()
+                     end
+                 end
+             end
+        end)
+    else
+        if espConnection then
+            espConnection:Disconnect()
+            espConnection = nil
+        end
+        -- Remover todos os highlights e nametags existentes quando o ESP é desligado
+        for _, item in pairs(ESPFolder:GetChildren()) do
+             item:Destroy()
+        end
+        --[[ -- Alternativa: Limpar jogador por jogador
+        for _, v in pairs(espPlayers:GetPlayers()) do
+            if v ~= espPlr then
+                cleanupESP(v)
+            end
+        end
+        --]]
+    end
+end
+
+-- Toggle ESP
+local ESPToggle = MainTab:CreateToggle({
+    Name = "ESP",
+    Description = "Ativa/Desativa o ESP.",
+    CurrentValue = false,
+    Section = ESPSection,
+    Callback = function(Value)
+        toggleESP(Value)
+    end
+})
+
+-- Seção Anti Ser Revistado
+local AntiRevistadoSection = MainTab:CreateSection("Anti Ser Revistado")
+
+--// Anti Ser Revistado (Kick se morrer)
+local antiRevistadoEnabled = false
+local humanoidConnectionAntiRevistado = nil
+local character = Player.Character or Player.CharacterAdded:Wait() -- Espera pelo personagem se não existir
+local humanoid = character:WaitForChild("Humanoid") -- Espera pelo humanoid
+
+local function onHealthChanged(health)
+    if antiRevistadoEnabled and health <= 5 then
+        Player:Kick("ANTI SER REVISTADO - Vida Baixa Detectada")
+        -- Desconectar para evitar kick duplo caso o evento dispare rápido
+        if humanoidConnectionAntiRevistado then
+            humanoidConnectionAntiRevistado:Disconnect()
+            humanoidConnectionAntiRevistado = nil
+        end
+    end
+end
+
+local function setupAntiRevistadoCharacter(char)
+    humanoid = char:WaitForChild("Humanoid")
+    -- Se já houver uma conexão antiga (personagem morreu/resetou), desconecta
+    if humanoidConnectionAntiRevistado then
+        humanoidConnectionAntiRevistado:Disconnect()
+        humanoidConnectionAntiRevistado = nil
+    end
+    -- Cria nova conexão se estiver habilitado
+    if antiRevistadoEnabled then
+         humanoidConnectionAntiRevistado = humanoid.HealthChanged:Connect(onHealthChanged)
+    end
+end
+
+local function toggleAntiRevistado(enabled)
+    antiRevistadoEnabled = enabled
+    if enabled then
+        -- Conectar o evento HealthChanged se ainda não estiver conectado
+        if humanoid and not humanoidConnectionAntiRevistado then
+            humanoidConnectionAntiRevistado = humanoid.HealthChanged:Connect(onHealthChanged)
+        end
+    else
+        -- Desconectar o evento HealthChanged se estiver conectado
+        if humanoidConnectionAntiRevistado then
+            humanoidConnectionAntiRevistado:Disconnect()
+            humanoidConnectionAntiRevistado = nil
+        end
+    end
+end
+
+-- Lida com respawn
+Player.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+    setupAntiRevistadoCharacter(newCharacter)
+end)
+
+-- Configuração inicial
+setupAntiRevistadoCharacter(character)
+toggleAntiRevistado(false) -- Começa desligado
+
+-- Toggle Anti Ser Revistado
+local AntiRevistadoToggle = MainTab:CreateToggle({
+    Name = "Anti Ser Revistado (Kick < 5 HP)",
+    Description = "Kicka você do jogo se sua vida for menor ou igual a 5.",
+    CurrentValue = false,
+    Section = AntiRevistadoSection,
+    Callback = function(Value)
+        toggleAntiRevistado(Value)
+    end
+})
+
+
+-- Seção Auto Roubar
+local AutoRoubarSection = MainTab:CreateSection("Auto Roubar")
+
+--// Auto Roubar
+local autoRoubarEnabled = false
+local autoRoubarLoopThread = nil -- Variável para controlar o loop
+local itens = {"AK47","Uzi","PARAFAL","Glock 17","Faca","IA2","G3","Dinamite","Hi Power","Natalina","HK416","Lockpick","Escudo","Skate","Saco de lixo","Peça de Arma","Tratamento"}
+local args = { [1] = "mudaInv", [2] = "2", [4] = "1" } -- Args base
+
+local function deletarNotifyGui()
+    local playerGui = Player:FindFirstChild("PlayerGui")
+    if not playerGui then return end
+    for _, gui in ipairs(playerGui:GetChildren()) do
+        if gui.Name == "NotifyGui" and gui:IsA("ScreenGui") then
+            gui:Destroy()
+        end
+    end
+end
+
+local function autoRoubarLoop()
+    while autoRoubarEnabled do
+        deletarNotifyGui()
+        for i, item in ipairs(itens) do
+            if not autoRoubarEnabled then break end -- Verifica antes de cada request
+            if i <= 16 then -- Limite de 16 itens?
+                args[3] = item
+                args[2] = tostring(i)
+                -- Usar pcall para evitar erros de invoke parando o loop
+                pcall(function()
+                    game:GetService("ReplicatedStorage").Modules.InvRemotes.InvRequest:InvokeServer(unpack(args))
+                end)
+            end
+            task.wait() -- Pequena pausa entre requests para evitar sobrecarga
+        end
+        task.wait(0.1) -- Pausa maior entre ciclos completos
+    end
+    autoRoubarLoopThread = nil -- Reseta a thread quando o loop termina
+end
+
+local AutoRoubarToggle = MainTab:CreateToggle({
+    Name = "Auto Roubar",
+    Description = "Tenta roubar itens automaticamente (pode causar lag/kick).",
+    CurrentValue = false,
+    Section = AutoRoubarSection,
+    Callback = function(Value)
+        autoRoubarEnabled = Value
+        if autoRoubarEnabled and not autoRoubarLoopThread then
+            autoRoubarLoopThread = task.spawn(autoRoubarLoop) -- Inicia o loop em uma nova thread
+        end
+        -- O loop interno verificará autoRoubarEnabled para parar
+    end
+})
+
+
+-- Seção Auto Revistar
+local AutoRevistarSection = MainTab:CreateSection("Auto Revistar")
+
+--// Auto Revistar por tecla T
+local revistarPorTeclaEnabled = false
+local revistarPo
