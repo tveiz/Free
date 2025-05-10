@@ -41,24 +41,3 @@ message.TextColor3 = Color3.new(1, 1, 1)
 message.Text = ""
 message.Font = Enum.Font.Gotham
 message.TextSize = 14
-
--- VERIFICAÇÃO
-submitButton.MouseButton1Click:Connect(function()
-    local input = textBox.Text
-    local hwid = getHWID()
-    if isValidKey(input) then
-        if isHWIDUsed(input, hwid) then
-            message.Text = "Essa key já foi usada em outro dispositivo!"
-        else
-            if not ignoreHWIDLock[input] then
-                saveHWID(input, hwid)
-            end
-            message.Text = "Key válida. Carregando menu..."
-            wait(1)
-            gui:Destroy()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/tveiz/Hubmini/refs/heads/main/Version2"))()
-        end
-    else
-        message.Text = "Key inválida ou expirada."
-    end
-end)
